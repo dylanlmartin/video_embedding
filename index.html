@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Clip Player</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --fg: #1d1c1a; --muted: #6b6862; --line: #dedbd4; --accent: #a51c30;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131211; --fg: #eceae5; --muted: #9a968e; --line: #2c2a27; --accent: #e0596c; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  main { max-width: 960px; margin: 0 auto; display: grid; gap: 14px; }
+  .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
+  .frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  h1 { font-size: 1.15rem; margin: 0; text-wrap: balance; }
+  .meta { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button, a.btn {
+    font: inherit; font-size: 0.95rem; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--fg); text-decoration: none;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:focus-visible, a.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .help { color: var(--muted); }
+  code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<main id="app">
+  <p class="help">Loading…</p>
+</main>
+<script>
+(function () {
+  var app = document.getElementById("app");
+  var q = new URLSearchParams(location.search);
+
+  // Accepts seconds ("862") or m:ss / h:mm:ss ("14:22").
+  function toSec(s) {
+    if (s == null || s === "") return null;
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(":").reduce(function (a, p) { return a * 60 + parseInt(p, 10); }, 0);
+    return null;
+  }
+  function fmt(n) {
+    var h = Math.floor(n / 3600), m = Math.floor(n % 3600 / 60), s = n % 60;
+    var mm = (h ? String(m).padStart(2, "0") : String(m)), ss = String(s).padStart(2, "0");
+    return (h ? h + ":" : "") + mm + ":" + ss;
+  }
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  var v = q.get("v") || "";
+  var start = toSec(q.get("start"));
+  var end = toSec(q.get("end"));
+  var title = q.get("title") || "";
+
+  app.textContent = "";
+  if (!/^[A-Za-z0-9_-]{11}$/.test(v) || start == null) {
+    app.appendChild(el("h1", {}, "Clip player"));
+    var p = el("p", { class: "help" });
+    p.innerHTML = "Plays one segment of a YouTube video. Use <code>?v=VIDEO_ID&amp;start=14:22&amp;end=15:05&amp;title=…</code> (times in seconds or m:ss).";
+    app.appendChild(p);
+    return;
+  }
+  if (end != null && end <= start) end = null;
+
+  function src(autoplay) {
+    var s = "https://www.youtube.com/embed/" + v + "?start=" + start + (end != null ? "&end=" + end : "") +
+            "&rel=0&playsinline=1" + (autoplay ? "&autoplay=1" : "");
+    return s;
+  }
+
+  var frame = el("div", { class: "frame" });
+  var iframe = el("iframe", {
+    src: src(true), title: title || "Lecture clip",
+    allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
+    allowfullscreen: "", referrerpolicy: "strict-origin-when-cross-origin"
+  });
+  frame.appendChild(iframe);
+  app.appendChild(frame);
+
+  if (title) { app.appendChild(el("h1", {}, title)); document.title = title; }
+  app.appendChild(el("div", { class: "meta" },
+    "Clip " + fmt(start) + (end != null ? "–" + fmt(end) + " (" + fmt(end - start) + ")" : " onward")));
+
+  var row = el("div", { class: "row" });
+  var replay = el("button", { type: "button", class: "primary" }, "Replay clip");
+  replay.addEventListener("click", function () { iframe.src = src(true); });
+  row.appendChild(replay);
+  row.appendChild(el("a", { class: "btn", href: "https://youtu.be/" + v + "?t=" + start, target: "_blank", rel: "noopener" }, "Open on YouTube"));
+  app.appendChild(row);
+  app.appendChild(el("p", { class: "help" }, "If it doesn't start, tap play. It stops by itself at the end time."));
+})();
+</script>
+</body>
+</html>
